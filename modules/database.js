@@ -2,13 +2,26 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 const dbPath = path.join(__dirname, '../db/ghostempresarial.db');
-const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE);
+const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+  if (err) {
+    console.error('Erro ao abrir o banco de dados:', err.message);
+  } else {
+    console.log('Conectado ao banco de dados SQLite em:', dbPath);
+  }
+});
 
 async function initializeDatabase() {
   return new Promise((resolve, reject) => {
-    db.on('open', () => {
-      console.log('Conectado ao banco de dados SQLite.');
-      db.run('PRAGMA encoding = "UTF-8"');
+    console.log('Iniciando serialização do banco de dados...');
+    db.serialize(() => {
+      console.log('Aplicando PRAGMA encoding = "UTF-8"...');
+      db.run('PRAGMA encoding = "UTF-8"', (err) => {
+        if (err) {
+          console.error('Erro ao aplicar PRAGMA:', err.message);
+          reject(err);
+          return;
+        }
+      });
 
       const createTables = `
         CREATE TABLE IF NOT EXISTS contacts (
@@ -40,6 +53,7 @@ async function initializeDatabase() {
         );
       `;
 
+      console.log('Executando criação das tabelas...');
       db.exec(createTables, (err) => {
         if (err) {
           console.error('Erro ao criar tabelas:', err.message);
@@ -50,14 +64,10 @@ async function initializeDatabase() {
         }
       });
     });
-
-    db.on('error', (err) => {
-      console.error('Erro ao conectar ao banco de dados:', err.message);
-      reject(err);
-    });
   });
 }
 
+// Funções utilitárias (mantidas iguais ao anterior)
 async function upsertContact({ name, phone, email }) {
   return new Promise((resolve, reject) => {
     db.run(
@@ -65,8 +75,15 @@ async function upsertContact({ name, phone, email }) {
        ON CONFLICT(phone) DO UPDATE SET name = excluded.name, email = excluded.email`,
       [name, phone, email],
       function (err) {
-        if (err) reject(err);
-        else resolve({ id: this.lastID || this.changes ? db.get('SELECT id FROM contacts WHERE phone = ?', [phone]) : null, name, phone, email });
+        if (err) return reject(err);
+        if (this.lastID) {
+          resolve({ id: this.lastID, name, phone, email });
+        } else {
+          db.get('SELECT id, name, phone, email FROM contacts WHERE phone = ?', [phone], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        }
       }
     );
   });
@@ -74,10 +91,10 @@ async function upsertContact({ name, phone, email }) {
 
 async function logInteraction({ contact_id, source, message, response }) {
   return new Promise((resolve, reject) => {
-    const localTimestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }).replace(/,/, '');
+    const timestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }).replace(/,/, '');
     db.run(
       'INSERT INTO interactions (contact_id, source, message, response, timestamp) VALUES (?, ?, ?, ?, ?)',
-      [contact_id, source, message, response, localTimestamp],
+      [contact_id, source, message, response, timestamp],
       function (err) {
         if (err) reject(err);
         else resolve(this.lastID);
@@ -88,10 +105,10 @@ async function logInteraction({ contact_id, source, message, response }) {
 
 async function updateFunnelStage({ contact_id, stage }) {
   return new Promise((resolve, reject) => {
-    const localTimestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }).replace(/,/, '');
+    const timestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }).replace(/,/, '');
     db.run(
       'INSERT INTO sales_funnel (contact_id, stage, updated_at) VALUES (?, ?, ?) ON CONFLICT(contact_id) DO UPDATE SET stage = excluded.stage, updated_at = excluded.updated_at',
-      [contact_id, stage, localTimestamp],
+      [contact_id, stage, timestamp],
       (err) => {
         if (err) reject(err);
         else resolve();
@@ -148,7 +165,8 @@ module.exports = {
   addAppointment,
   getContact,
   getFunnelStage,
-  all
+  all,
+  db
 };
 
 process.on('SIGINT', () => {

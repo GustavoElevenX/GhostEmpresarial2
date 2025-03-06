@@ -8,10 +8,12 @@
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background-color: #f2f2f2; }
     button { margin: 5px; padding: 5px 10px; }
+    #status { color: red; }
   </style>
 </head>
 <body>
   <h1>Ghost Empresarial 2.0 - Dashboard</h1>
+  <p id="status">Aguardando inicialização do sistema...</p>
   
   <h2>Leads no Funil</h2>
   <table id="leadsTable">
@@ -83,19 +85,40 @@
       ipcRenderer.send('move-lead', { contactId, stage });
     }
 
-    window.onload = () => {
-      ipcRenderer.send('load-leads');
-      ipcRenderer.send('load-appointments');
-      setInterval(() => {
-        ipcRenderer.send('load-leads');
-        ipcRenderer.send('load-appointments');
-      }, 30000);
-    };
+    let refreshInterval;
 
     ipcRenderer.on('funnel-update', (event, msg) => {
-      if (msg.type === 'leadsData') updateLeads(msg.data);
-      if (msg.type === 'appointmentsData') updateAppointments(msg.data);
+      console.log('Mensagem recebida do funil:', msg);
+      if (msg.type === 'funnelReady') {
+        document.getElementById('status').textContent = 'Sistema inicializado com sucesso!';
+        document.getElementById('status').style.color = 'green';
+        console.log('Funil pronto, iniciando carregamento de dados...');
+        ipcRenderer.send('load-leads');
+        ipcRenderer.send('load-appointments');
+        // Iniciar atualização periódica apenas após o funil estar pronto
+        refreshInterval = setInterval(() => {
+          ipcRenderer.send('load-leads');
+          ipcRenderer.send('load-appointments');
+        }, 30000);
+      } else if (msg.type === 'leadsData') {
+        updateLeads(msg.data);
+      } else if (msg.type === 'appointmentsData') {
+        updateAppointments(msg.data);
+      } else if (msg.type === 'error') {
+        document.getElementById('status').textContent = `Erro: ${msg.message}`;
+        console.error('Erro do funil:', msg.message);
+      }
     });
+
+    ipcRenderer.on('funnel-error', (event, message) => {
+      document.getElementById('status').textContent = `Erro: ${message}`;
+      console.log('Erro na interface:', message);
+    });
+
+    // Não carregar nada automaticamente no onload, esperar o funnelReady
+    window.onload = () => {
+      console.log('Página carregada, aguardando inicialização do funil...');
+    };
   </script>
 </body>
 </html>
