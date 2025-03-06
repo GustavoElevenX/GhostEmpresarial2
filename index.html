@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Ghost Empresarial 2.0 - Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    button { margin: 5px; padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <h1>Ghost Empresarial 2.0 - Dashboard</h1>
+  
+  <h2>Leads no Funil</h2>
+  <table id="leadsTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nome</th>
+        <th>Telefone</th>
+        <th>Etapa</th>
+        <th>Última Interação</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Agendamentos</h2>
+  <table id="appointmentsTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nome</th>
+        <th>Telefone</th>
+        <th>Data/Hora</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    function updateLeads(leads) {
+      const tbody = document.querySelector('#leadsTable tbody');
+      tbody.innerHTML = '';
+      leads.forEach(lead => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${lead.id}</td>
+          <td>${lead.name}</td>
+          <td>${lead.phone}</td>
+          <td>${lead.stage || 'Sem etapa'}</td>
+          <td>${lead.timestamp || 'Nenhuma'}</td>
+          <td>
+            <button onclick="moveLead(${lead.id}, 'lead_quente')">Mover para Lead Quente</button>
+            <button onclick="moveLead(${lead.id}, 'reuniao_agendada')">Agendar Reunião</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function updateAppointments(appointments) {
+      const tbody = document.querySelector('#appointmentsTable tbody');
+      tbody.innerHTML = '';
+      appointments.forEach(appt => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${appt.id}</td>
+          <td>${appt.name}</td>
+          <td>${appt.phone}</td>
+          <td>${appt.date_time}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function moveLead(contactId, stage) {
+      ipcRenderer.send('move-lead', { contactId, stage });
+    }
+
+    window.onload = () => {
+      ipcRenderer.send('load-leads');
+      ipcRenderer.send('load-appointments');
+      setInterval(() => {
+        ipcRenderer.send('load-leads');
+        ipcRenderer.send('load-appointments');
+      }, 30000);
+    };
+
+    ipcRenderer.on('funnel-update', (event, msg) => {
+      if (msg.type === 'leadsData') updateLeads(msg.data);
+      if (msg.type === 'appointmentsData') updateAppointments(msg.data);
+    });
+  </script>
+</body>
+</html>

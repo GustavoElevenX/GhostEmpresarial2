@@ -1,0 +1,32 @@
+{
+  "name": "ghost_empresarial_2.0",
+  "version": "1.0.0",
+  "description": "Sistema de automação empresarial para vendas e suporte",
+  "main": "main.js",
+  "scripts": {
+    "start": "node modules/funnel.js",
+    "electron": "electron . --encoding=utf8",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Gustavo",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
+    "@googleapis/gmail": "^12.0.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5",
+    "electron": "^28.3.3",
+    "puppeteer-core": "^22.12.0",
+    "qrcode-terminal": "^0.12.0",
+    "sqlite3": "^5.1.7",
+    "whatsapp-web.js": "1.26.0",
+    "ws": "^8.18.0"
+  },
+  "overrides": {
+    "whatsapp-web.js": {
+      "puppeteer": "$puppeteer-core",
+      "ws": "^8.18.0"
+    }
+  }
+}
